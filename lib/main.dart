@@ -1,4 +1,4 @@
-import 'package:connect_ble/Pages/home_page.dart';
+import 'package:connect_ble/pages/menu_page.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -15,7 +15,7 @@ class MyApp extends StatelessWidget {
     return GetMaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData(fontFamily: 'Poppins'),
-      home: const HomePage(),
+      home: const MenuPage(),
     );
   }
 }

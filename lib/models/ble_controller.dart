@@ -1,13 +1,10 @@
-import 'dart:io';
 import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
-import 'package:path/path.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:connect_ble/models/sensor_data.dart';
+import 'package:connect_ble/services/database_services.dart';
 
 class BleController extends GetxController {
   final RxBool isScanning = false.obs;
@@ -108,57 +105,37 @@ class BleController extends GetxController {
           return; // Don't process as sensor data
         }
       }
+
+      // Create SensorData object from JSON
+      final sensorData = SensorData.fromJson(jsonData);
       
-      // Reset validity flags
-      hasValidHeartRate.value = false;
-      hasValidSpo2.value = false;
-      hasValidTemperature.value = false;
-      hasValidBattery.value = false;
-      
-      // Extract and validate sensor data
-      if (isHeartRateEnabled.value && jsonData.containsKey('heartRate')) {
-        var hrValue = jsonData['heartRate'];
-        if (hrValue != null && hrValue != 0) {
-          heartRate.value = hrValue is num ? 
-                           hrValue.toDouble() : 
-                           double.tryParse(hrValue.toString()) ?? 0.0;
-          hasValidHeartRate.value = heartRate.value > 0;
-          print("Heart Rate updated: ${heartRate.value} (valid: ${hasValidHeartRate.value})");
+      // Only update UI and store data if we have valid values
+      if (sensorData.hasValidData()) {
+        // Update UI values if they are valid
+        if (sensorData.heartRate != null && isHeartRateEnabled.value) {
+          heartRate.value = sensorData.heartRate!;
+          hasValidHeartRate.value = true;
         }
-      }
-      
-      if (isSpo2Enabled.value && jsonData.containsKey('spo2')) {
-        var spo2Value = jsonData['spo2'];
-        if (spo2Value != null && spo2Value != 0) {
-          spo2.value = spo2Value is num ? 
-                      spo2Value.toDouble() : 
-                      double.tryParse(spo2Value.toString()) ?? 0.0;
-          hasValidSpo2.value = spo2.value > 0;
-          print("SpO2 updated: ${spo2.value} (valid: ${hasValidSpo2.value})");
+        
+        if (sensorData.spo2 != null && isSpo2Enabled.value) {
+          spo2.value = sensorData.spo2!;
+          hasValidSpo2.value = true;
         }
-      }
-      
-      if (isTemperatureEnabled.value && jsonData.containsKey('temperature')) {
-        var tempValue = jsonData['temperature'];
-        if (tempValue != null && tempValue != 0) {
-          temperature.value = tempValue is num ? 
-                             tempValue.toDouble() : 
-                             double.tryParse(tempValue.toString()) ?? 0.0;
-          hasValidTemperature.value = temperature.value > 0;
-          print("Temperature updated: ${temperature.value} (valid: ${hasValidTemperature.value})");
+        
+        if (sensorData.temperature != null && isTemperatureEnabled.value) {
+          temperature.value = sensorData.temperature!;
+          hasValidTemperature.value = true;
         }
-      }
-      
-      // Extract battery percentage (always process if present)
-      if (jsonData.containsKey('batteryPercentage')) {
-        var batteryValue = jsonData['batteryPercentage'];
-        if (batteryValue != null) {
-          batteryPercentage.value = batteryValue is num ? 
-                                   batteryValue.toDouble() : 
-                                   double.tryParse(batteryValue.toString()) ?? 0.0;
-          hasValidBattery.value = batteryPercentage.value >= 0;
-          print("Battery updated: ${batteryPercentage.value}% (valid: ${hasValidBattery.value})");
+        
+        if (sensorData.batteryPercentage != null) {
+          batteryPercentage.value = sensorData.batteryPercentage!;
+          hasValidBattery.value = true;
         }
+
+        // Store data in database
+        DatabaseServices.instance.insertSensorData(sensorData);
+        
+        print("Data processing complete - HR: ${heartRate.value} (valid: ${hasValidHeartRate.value}), SpO2: ${spo2.value} (valid: ${hasValidSpo2.value}), Temp: ${temperature.value} (valid: ${hasValidTemperature.value})");
       }
       
       // Check for enabledSensors status in regular data messages
@@ -170,8 +147,6 @@ class BleController extends GetxController {
         isSpo2Enabled.value = enabledSensors['spo2'] == true;
       }
       
-      print("Data processing complete - HR: ${heartRate.value} (valid: ${hasValidHeartRate.value}), SpO2: ${spo2.value} (valid: ${hasValidSpo2.value}), Temp: ${temperature.value} (valid: ${hasValidTemperature.value})");
-      
     } catch (e) {
       print("Error parsing received data: $e");
       print("Raw data was: ${String.fromCharCodes(data)}");
@@ -180,7 +155,6 @@ class BleController extends GetxController {
         connectionStatus.value = "Data parsing error";
       }
     }
-
   }
 
   // Method to update sensor modes
@@ -255,18 +229,62 @@ class BleController extends GetxController {
 
   // Use FlutterBluePlus directly in your methods
   Future scanDevices() async {
-    if(await Permission.bluetoothScan.request().isGranted){
-      if(await Permission.bluetoothConnect.request().isGranted){
-        isScanning.value = true;
-        // Start scanning with timeout
-        FlutterBluePlus.startScan(
-          withServices: [Guid(serviceUUID)],
-          timeout: Duration(seconds: 10));
-        // Listen to scanning state
-        FlutterBluePlus.isScanning.listen((scanning) {
-          isScanning.value = scanning;
-        });
+    try {
+      // Check if Bluetooth is turned on
+      if (!await FlutterBluePlus.isSupported) {
+        print("Bluetooth not supported");
+        return;
       }
+
+      // Request permissions
+      if (!await Permission.bluetoothScan.isGranted) {
+        final status = await Permission.bluetoothScan.request();
+        if (!status.isGranted) {
+          print("Bluetooth scan permission denied");
+          return;
+        }
+      }
+
+      if (!await Permission.bluetoothConnect.isGranted) {
+        final status = await Permission.bluetoothConnect.request();
+        if (!status.isGranted) {
+          print("Bluetooth connect permission denied");
+          return;
+        }
+      }
+
+      if (!await Permission.location.isGranted) {
+        final status = await Permission.location.request();
+        if (!status.isGranted) {
+          print("Location permission denied");
+          return;
+        }
+      }
+
+      // Make sure any previous scan is stopped
+      if (isScanning.value) {
+        await FlutterBluePlus.stopScan();
+        await Future.delayed(Duration(milliseconds: 100));
+      }
+
+      isScanning.value = true;
+      
+      // Start scanning with timeout
+      await FlutterBluePlus.startScan(
+        withServices: [Guid(serviceUUID)],
+        timeout: Duration(seconds: 10),
+      );
+
+      // Listen to scanning state
+      FlutterBluePlus.isScanning.listen((scanning) {
+        isScanning.value = scanning;
+      }, onError: (error) {
+        print("Scanning error: $error");
+        isScanning.value = false;
+      });
+    } catch (e) {
+      print("Error during scan: $e");
+      isScanning.value = false;
     }
   }
 

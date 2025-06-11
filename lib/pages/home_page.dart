@@ -1,9 +1,6 @@
 import 'package:connect_ble/pages/history_page.dart';
-import 'package:connect_ble/services/database_services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:connect_ble/pages/scan_page.dart';
 import 'package:connect_ble/models/ble_controller.dart';
 import 'package:get/get.dart';
@@ -227,60 +224,44 @@ class _HomePageState extends State<HomePage> {
                           ),
                         )),
                       ),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Obx(() => ElevatedButton.icon(
-                          onPressed: bleController.isConnected.value 
-                            ? () => bleController.disconnect()
-                            : null,
-                          icon: Icon(Icons.bluetooth_disabled),
-                          label: Text('Disconnect'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red[400],
-                            foregroundColor: Colors.white,
-                            disabledBackgroundColor: Colors.grey[300],
-                            disabledForegroundColor: Colors.grey[600],
-                          ),
-                        )),
-                      ),
                     ],
                   ),
 
                   SizedBox(height: 16),
 
-                  // Test Database Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        try {
-                          await DatabaseServices.instance.insertTestData();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Test data inserted successfully!'),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-                        } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error inserting test data: $e'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      },
-                      icon: Icon(Icons.storage),
-                      label: Text('Insert Test Data to Database'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFF4CAF50),
-                        foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
+                  // // Test Database Button
+                  // SizedBox(
+                  //   width: double.infinity,
+                  //   child: ElevatedButton.icon(
+                  //     onPressed: () async {
+                  //       try {
+                  //         await DatabaseServices.instance.insertTestData();
+                  //         ScaffoldMessenger.of(context).showSnackBar(
+                  //           SnackBar(
+                  //             content: Text('Test data inserted successfully!'),
+                  //             backgroundColor: Colors.green,
+                  //           ),
+                  //         );
+                  //       } catch (e) {
+                  //         ScaffoldMessenger.of(context).showSnackBar(
+                  //           SnackBar(
+                  //             content: Text('Error inserting test data: $e'),
+                  //             backgroundColor: Colors.red,
+                  //           ),
+                  //         );
+                  //       }
+                  //     },
+                  //     icon: Icon(Icons.storage),
+                  //     label: Text('Insert Test Data to Database'),
+                  //     style: ElevatedButton.styleFrom(
+                  //       backgroundColor: Color(0xFF4CAF50),
+                  //       foregroundColor: Colors.white,
+                  //       padding: EdgeInsets.symmetric(vertical: 12),
+                  //     ),
+                  //   ),
+                  // ),
 
-                  SizedBox(height: 16),
+                  // SizedBox(height: 16),
 
                   // Connection Status
                   Obx(() => Card(
@@ -464,28 +445,28 @@ class _HomePageState extends State<HomePage> {
                 ),
                 const SizedBox(width: 12),
                 Obx(() => ElevatedButton.icon(
-                  onPressed: bleController.isConnected.value 
-                    ? null 
-                    : () async {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const ScanPage()),
-                        );
-                      },
+                  onPressed: () async {
+                    if (bleController.isConnected.value) {
+                      bleController.disconnect();
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ScanPage()),
+                      );
+                    }
+                  },
                   icon: Icon(
                     bleController.isConnected.value 
-                      ? Icons.bluetooth_connected 
+                      ? Icons.bluetooth_disabled
                       : Icons.bluetooth,
                     size: 16,
                   ),
-                  label: Text(bleController.isConnected.value ? 'Connected' : 'Connect'),
+                  label: Text(bleController.isConnected.value ? 'Disconnect' : 'Connect'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: bleController.isConnected.value 
-                      ? Colors.green 
+                      ? Colors.red[400]
                       : const Color(0xFF2E86AB),
                     foregroundColor: Colors.white,
-                    disabledBackgroundColor: Colors.green,
-                    disabledForegroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -645,7 +626,7 @@ class _HomePageState extends State<HomePage> {
       centerTitle: true,
       leading: GestureDetector(
         onTap: () {
-          // Handle back button tap here
+          Navigator.pop(context);
         },
         child: Container(
           margin: EdgeInsets.all(10.0),
