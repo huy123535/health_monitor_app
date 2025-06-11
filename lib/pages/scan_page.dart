@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:connect_ble/services/ble_scanner.dart';
+import 'package:connect_ble/services/database_services.dart';
 import 'package:connect_ble/models/ble_controller.dart';
 import 'package:get/get.dart';
 
